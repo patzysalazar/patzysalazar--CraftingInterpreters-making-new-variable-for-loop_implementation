@@ -1341,6 +1341,12 @@ static void expressionStatement() {
 static void forStatement() {
 //> for-begin-scope
   beginScope();
+
+  Token loopVarName = {0};// loop variable name
+  int loopVarPosition = 0;// local variable loop position
+  bool LoopVar = false;// boolean variable to identify if there is or isn't a loop variable
+
+
 //< for-begin-scope
   consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 /* Jumping Back and Forth for-statement < Jumping Back and Forth for-initializer
@@ -1350,7 +1356,12 @@ static void forStatement() {
   if (match(TOKEN_SEMICOLON)) {
     // No initializer.
   } else if (match(TOKEN_VAR)) {
-    varDeclaration();
+  //identifying variable
+    loopVarName = parser.current;// var name
+    varDeclaration();//compiles code
+    loopVarPosition = current->localCount - 1;// local var index
+    LoopVar = true;// loop has var
+
   }
   else if (match(TOKEN_FINAL)){// compiler recognizes final as a variable declaration
     finalDeclaration();
@@ -1393,9 +1404,28 @@ static void forStatement() {
     patchJump(bodyJump);
   }
 //< for-increment
+  if(LoopVar == true)  {// if there is loop var, get ready for new copy of loop variable
+    beginScope();
 
-  statement();
-  emitLoop(loopStart);
+    namedVariable(loopVarName, false);// get old var value
+    addLocal(loopVarName);// new local var
+    markInitialized();// new variable initialized
+  }
+
+    statement();// compiles loop
+
+  //after compiling loop
+  if(LoopVar == true){
+    namedVariable(loopVarName, false);// get new var value, pushes copy onto stack
+    emitBytes(OP_SET_LOCAL, (uint8_t)loopVarPosition);// set and replace old var with new var value
+    emitByte(OP_POP);// removes extra copy of var value from stack(no repeats)
+    endScope();
+
+  }
+
+    emitLoop(loopStart);//continue loop
+
+
 //> exit-jump
 
   if (exitJump != -1) {
